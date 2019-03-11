@@ -13,7 +13,7 @@ key-value数目评估<br>
 最好情况：value占用1M，1T文件中包含的key-value个数约1M个；<br>
 平均情况：key-value占用0.5M，1T文件中包含的key-value个数约2M个。<br>
 
-已完成的功能
+已完成的功能<br>
 索引表设计(对应MappingTable.h/c)
 1) 哈希桶设计：每个哈希桶作为冲突链表头结点，使用单链表，占用8B。插入时，插入到链表头部，使用CAS支持并发插入。2GB内存作为哈希桶内存占用，共256M个哈希桶。采用开源的xxhash源码计算key的8B哈希值。
 2) 哈希Entry设计<br>
