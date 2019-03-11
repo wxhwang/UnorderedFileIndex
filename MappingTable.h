@@ -81,7 +81,7 @@ private:
     // 此次要改成64位，支持大文件
     size_t m_fileLen; // 映射内存大小
     uint8_t *m_startAddr; // 文件映射到内存后返回的地址
-    Bucket *m_buckets; // 哈希桶
+    Bucket *m_buckets; // 哈希桶，后面要让该处内存常驻内存
     uint64_t m_bucketsNum; // 2的幂次方
     
     Entry *m_entries;
