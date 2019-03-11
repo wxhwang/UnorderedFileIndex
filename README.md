@@ -1,5 +1,5 @@
 # UnorderedFileIndex
-题目描述——设计一个高效的索引结构
+题目描述——设计一个高效的索引结构<br>
 某个机器的配置为：CPU 8 cores，MEM 4G，HDD 4T。这个机器上有一个1T的无序数据文件，格式为(key_size:uint64, key:bytes, value_size:uint64_t, value:bytes)，其中1B<=key_size<=1KB，1B<=value_size<=1MB。设计一个索引结构，使得并发随机地读取每一个key-value的代价最小，不需要支持range scan。允许对数据文件做任意预处理，但是预处理的时间计入到整个读取的代价里。
 
 主要思路
