@@ -2,6 +2,8 @@
 #define MAPPING_TABLE_H_
 
 #include <sys/types.h>
+#include <sys/mman.h>
+#include <atomic>
 #include <string>
 #include "FileCtrl.h"
 
@@ -62,7 +64,7 @@ public:
         };
     };
     
-    Entry *next; // 冲突链
+    uint64_t next; // 使用编号组织冲突链
     
     void Init(uint8_t *key, uint64_t keyOffset, uint64_t keyLen, uint8_t *value, uint64_t valueOffset, uint64_t valueLen, uint64_t kvOffset, uint64_t kvLen);
 };
@@ -70,7 +72,7 @@ public:
 // 8B
 typedef struct Bucket
 {
-    void                    *head; // 组织冲突链，链表头结点
+    uint64_t next_entry_idx; // 组织冲突链，链表头结点
 }Bucket;
 
 class MappingTable
@@ -81,17 +83,17 @@ private:
     // 此次要改成64位，支持大文件
     size_t m_fileLen; // 映射内存大小
     uint8_t *m_startAddr; // 文件映射到内存后返回的地址
-    Bucket *m_buckets; // 哈希桶，后面要让该处内存常驻内存
+    Bucket *m_buckets; // 哈希桶，需要使用mlock函数锁定内存不允许交换出去，等到索引表构建完成后，再持久化到文件中s
     uint64_t m_bucketsNum; // 2的幂次方
     
     Entry *m_entries;
     uint64_t m_totalEntriesNum;
     // 此处要使用原子变量
-    uint64_t m_allocIdx; // 当前分配的entry位置
+    atomic_uint64_t m_allocIdx; // 当前分配的entry位置
     
     FileCtrl *m_fileCtrl; // 用来根据地址读文件
     
-    Entry *AllocEntry();
+    uint64_t AllocEntry();
     uint64_t CalculHash(const void* buffer, size_t length);
     Bucket *GetBucket(uint64_t hash);
 public:
@@ -107,19 +109,16 @@ public:
         this->m_allocIdx = 0;
         this->m_fileLen = 0;
     }
-    ~MappingTable()
-    {
-        if(NULL != this->m_startAddr)
-        {
-            munmap(this->m_startAddr, this->m_fileLen);
-        }
-    }
+    ~MappingTable();
     int32_t DoMmap();
     void SetUpFileCtrl(FileCtrl *fileCtrl);
     
     // 插入一条记录，支持并发
     int32_t Put(uint8_t *key, uint64_t keyOffset, uint64_t keyLen, uint8_t *value, uint64_t valueOffset, uint64_t valueLen, uint64_t kvOffset, uint64_t kvLen);
     int32_t Get(uint8_t *key, uint64_t keyLen, uint8_t **outValue, uint64_t *outValueLen);
+    
+    // 索引构建完成，持久化哈希桶内存
+    int32_t IndexBuildComplete();
 };
 
 

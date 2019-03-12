@@ -40,7 +40,7 @@ public:
     
     // 并发构建索引
     void BeginTraverse();
-    int32_t DoTraverse(uint8_t **outKey, uint64_t *outKeyLen, uint8_t **outValue, uint64_t *outValueLen);
+    int32_t DoTraverse(uint8_t **outKey, uint64_t *outKeyOffset, uint64_t *outKeyLen, uint8_t **outValue, uint64_t *outValueOffset, uint64_t *outValueLen, uint64_t *outKvOffset, uint64_t *outKvLen);
 };
 
 #endif

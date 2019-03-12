@@ -115,7 +115,7 @@ void FileCtrl::BeginTraverse()
     this->m_TraverseOffset = 0;
 }
 
-int32_t FileCtrl::DoTraverse(uint8_t **outKey, uint64_t *outKeyLen, uint8_t **outValue, uint64_t *outValueLen)
+int32_t FileCtrl::DoTraverse(uint8_t **outKey, uint64_t *outKeyOffset, uint64_t *outKeyLen, uint8_t **outValue, uint64_t *outValueOffset, uint64_t *outValueLen, uint64_t *outKvOffset, uint64_t *outKvLen)
 {
     pthread_mutex_lock(&m_mutex);
     if(!IsOffsetValid(this->m_TraverseOffset))

@@ -13,15 +13,13 @@ class ITask
 {
 protected:
     string m_taskName; // 任务名称
-    void* m_taskData; // 执行任务的具体数据
     void *m_cbArgs; // callback函数参数
     TASK_CALLBACK_FUNC callback; // callback函数
     
 public:
-    ITask(string taskName, void *taskData)
+    ITask(string taskName)
     {
         this->m_taskName = taskName;
-        this->m_taskData = taskData;
         this->m_cbArgs = NULL;
         this->callback = NULL;
     }

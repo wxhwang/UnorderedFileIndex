@@ -9,6 +9,9 @@
 #include "xxhash.h"
 #include "MappingTable.h"
 
+// 标识链表结束
+#define INVALID_ENTRY_NO                    (-1)
+
 
 void Entry::Init(uint8_t *key, uint64_t keyOffset, uint64_t keyLen, uint8_t *value, uint64_t valueOffset, uint64_t valueLen, uint64_t kvOffset, uint64_t kvLen)
 {
@@ -62,11 +65,10 @@ Bucket *MappingTable::GetBucket(uint64_t hash)
     return &this->m_buckets[hash & (this->m_bucketsNum - 1)];
 }
 
-Entry *MappingTable::AllocEntry()
+uint64_t MappingTable::AllocEntry()
 {
-    Entry *entry = &this->m_entries[this->m_allocIdx++];
-    entry->next = NULL;
-    return entry;
+    uint64_t entryIdx = atomic_fetch_add(&m_allocIdx, 1);
+    return entryIdx < m_totalEntriesNum ? entryIdx : INVALID_ENTRY_NO;
 }
 
 void MappingTable::SetUpFileCtrl(FileCtrl *fileCtrl)
@@ -117,29 +119,37 @@ int32_t MappingTable::DoMmap()
     this->m_entries = (Entry *)(this->m_startAddr + this->m_bucketsNum * sizeof(Bucket));
     this->m_fileLen = totalMemSize;
     
+    // 6. 让系统分配哈希桶的物理内存
+    memset(this->m_buckets, 0, this->m_bucketsNum * sizeof(Bucket));
+    
+    // 7. 锁定哈希桶内存不允许交换，等到索引表创建完成后再持久化到内存
+    mlock(this->m_buckets, this->m_bucketsNum * sizeof(Bucket));
+    
     return 0;
 }
 
 int32_t MappingTable::Put(uint8_t *key, uint64_t keyOffset, uint64_t keyLen, uint8_t *value, uint64_t valueOffset, uint64_t valueLen, uint64_t kvOffset, uint64_t kvLen)
 {
     uint64_t hash;
-    Entry *entry, *head;
+    uint64_t entryIdx, headEntryIdx;
+    Entry *entry;
     Bucket *bucket;
-    entry = AllocEntry();
-    if(NULL == entry)
+    entryIdx = AllocEntry();
+    if(INVALID_ENTRY_NO == entryIdx)
     {
         cout << "alloc entry failed, idx " << this->m_allocIdx << endl;
         return -1;
     }
     
     hash = CalculHash(key, keyLen);
+    entry = &m_entries[entryIdx];
     entry->Init(key, keyOffset, keyLen, value, valueOffset, valueLen, kvOffset, kvLen);
     bucket = GetBucket(hash);
     do
     {
-        head = (Entry *)bucket->head;
-        entry->next = head;
-    }while(!__sync_bool_compare_and_swap(&bucket->head, head, entry));
+        headEntryIdx = bucket->next_entry_idx;
+        entry->next = headEntryIdx;
+    }while(!__sync_bool_compare_and_swap(&bucket->next_entry_idx, headEntryIdx, entryIdx));
     
     return 0;
 }
@@ -158,8 +168,8 @@ int32_t MappingTable::Get(uint8_t *key, uint64_t keyLen, uint8_t **outValue, uin
     
     hash = CalculHash(key, keyLen);
     bucket = GetBucket(hash);
-    entry = (Entry *)bucket->head;
-    while(NULL != entry && !found)
+    entry = &m_entries[bucket->next_entry_idx];
+    while(INVALID_ENTRY_NO != entry->next && !found)
     {
         switch (entry->type)
         {
@@ -201,8 +211,39 @@ int32_t MappingTable::Get(uint8_t *key, uint64_t keyLen, uint8_t **outValue, uin
             default:
                 break;
         }
-        entry = entry->next;
+        entry = &m_entries[entry->next];
     }
     
     return NULL == entry ? -1 : 0;
+}
+
+// 索引构建完成，持久化哈希桶内存
+int32_t MappingTable::IndexBuildComplete()
+{
+    int fd;
+    // 1. 打开文件
+    fd = open(m_memMappingFilePath.c_str(), O_RDWR);
+    if(-1 == fd)
+    {
+        cout << "open " << m_memMappingFilePath << " failed." << endl;
+        return -1;
+    }
+    
+    // 2. 将哈希桶持久化到文件中
+    write(fd, m_buckets, this->m_bucketsNum * sizeof(Bucket));
+    
+    // 3. 关闭文件
+    close(fd);
+    
+    return 0;
+}
+
+
+MappingTable::~MappingTable()
+{
+    if(NULL != this->m_startAddr)
+    {
+        munlock(this->m_buckets, this->m_bucketsNum * sizeof(Bucket));
+        munmap(this->m_startAddr, this->m_fileLen);
+    }
 }
