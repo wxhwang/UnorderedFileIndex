@@ -120,7 +120,7 @@ int32_t MappingTable::DoMmap()
     this->m_fileLen = totalMemSize;
     
     // 6. 让系统分配哈希桶的物理内存
-    memset(this->m_buckets, 0, this->m_bucketsNum * sizeof(Bucket));
+    memset(this->m_buckets, 0xFF, this->m_bucketsNum * sizeof(Bucket));
     
     // 7. 锁定哈希桶内存不允许交换，等到索引表创建完成后再持久化到内存
     mlock(this->m_buckets, this->m_bucketsNum * sizeof(Bucket));
